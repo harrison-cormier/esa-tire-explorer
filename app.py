@@ -64,7 +64,14 @@ LONGER = "#52514e"
 # ----------------------------------------------------------------------------
 
 
-def braking_animation(sel, ref, env, sel_label, ref_label, ref_name):
+def braking_animation(sel, ref, env, sel_label, ref_label, ref_name, surface_name, header=True):
+    """
+    Two cars braking side by side on a canvas. With `header` on, the top of the canvas carries
+    a large heading with the road surface, temperature and braking speed so the conditions are
+    readable from a distance. Demo mode turns it off because its banner already says the same
+    thing, which keeps the top of the page short enough for a 13-inch laptop screen.
+    """
+    canvas_height = 390 if header else 306
     def sample(profile):
         idx = np.linspace(0, len(profile["t"]) - 1, 81).astype(int)
         return dict(t=profile["t"][idx].round(3).tolist(), d=profile["d"][idx].round(2).tolist(),
@@ -76,10 +83,11 @@ def braking_animation(sel, ref, env, sel_label, ref_label, ref_name):
         refLabel=ref_label, selLabel=sel_label, refName=ref_name, v0=env["speed"], surface=env["surface"],
         firstIsRef=first is ref, firstStop=round(first["distance"], 1),
         residual=round(speed_at_distance(other["profile"], first["distance"])),
+        header=header, conditions=f"{surface_name} at {env['temp']} °C",
     )
     html = """
 <div id="wrap" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
-  <canvas id="c" style="width:100%;height:300px;border-radius:12px;display:block"></canvas>
+  <canvas id="c" style="width:100%;height:__HEIGHT__px;border-radius:12px;display:block"></canvas>
 </div>
 <script>
 const D = __DATA__;
@@ -89,7 +97,8 @@ const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const maxD = Math.max(D.ref.d.at(-1), D.sel.d.at(-1));
 const maxT = Math.max(D.ref.t.at(-1), D.sel.t.at(-1));
 const rate = Math.max(1, maxT / 7), LEAD = 0.7, HOLD = 3.2;
-let W, H = 300, played = 0, last = null, paused = false;
+const TOP = D.header ? 84 : 0;
+let W, H = 306 + TOP, played = 0, last = null, paused = false;
 
 function fit() {
   const r = window.devicePixelRatio || 1;
@@ -113,14 +122,14 @@ function lane(p, y, color, label, t, x0, s) {
   const v = t < 0 ? D.v0 : at(p, 'v', t);
   const x = x0 + d * s, done = t >= p.t.at(-1);
   car(x, y, color, t >= 0 && !done);
-  const flip = x > W - 260, tx = flip ? x - 68 : x + 12;
+  const flip = x > W - 300, tx = flip ? x - 68 : x + 12;
   const status = done ? 'Stopped in ' + p.d.at(-1).toFixed(1) + ' m' : Math.round(v) + ' km/h';
-  ctx.font = '600 14px system-ui'; const lw = Math.max(ctx.measureText(label).width, 150) + 16;
+  ctx.font = '600 16px system-ui'; const lw = Math.max(ctx.measureText(label).width, 190) + 16;
   ctx.fillStyle = ROAD[0]; ctx.globalAlpha = .82; ctx.beginPath();
-  ctx.roundRect(flip ? tx - lw + 8 : tx - 8, y - 40, lw, 54, 8); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.roundRect(flip ? tx - lw + 8 : tx - 8, y - 46, lw, 66, 8); ctx.fill(); ctx.globalAlpha = 1;
   ctx.fillStyle = ROAD[1]; ctx.textAlign = flip ? 'right' : 'left';
-  ctx.fillText(label, tx, y - 20);
-  ctx.font = '700 18px system-ui'; ctx.fillText(status, tx, y + 6);
+  ctx.fillText(label, tx, y - 23);
+  ctx.font = '700 24px system-ui'; ctx.fillText(status, tx, y + 9);
 }
 function frame(ms) {
   const cycle = LEAD + maxT / rate + HOLD;
@@ -130,41 +139,48 @@ function frame(ms) {
   const x0 = 96, s = (W - x0 - 40) / (maxD * 1.06);
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = ROAD[0]; ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
-  ctx.strokeStyle = ROAD[1]; ctx.globalAlpha = .35; ctx.setLineDash([18, 16]); ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, 150); ctx.lineTo(W, 150); ctx.stroke(); ctx.setLineDash([]);
-  const step = [5, 10, 20, 50, 100].find(k => maxD / k <= 9) || 200;
-  ctx.fillStyle = ROAD[1]; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
-  for (let m = 0; m <= maxD * 1.06; m += step) {
-    ctx.fillRect(x0 + m * s, H - 30, 1, 8); ctx.fillText(m + ' m', x0 + m * s, H - 8);
+  if (D.header) {
+    ctx.fillStyle = ROAD[1]; ctx.textAlign = 'left';
+    let size = 28; ctx.font = '700 28px system-ui';
+    while (ctx.measureText(D.conditions).width > W - 36 && size > 15) { size--; ctx.font = '700 ' + size + 'px system-ui'; }
+    ctx.fillText(D.conditions, 18, 38);
+    const speed = 'Braking from ' + D.v0 + ' km/h';
+    ctx.font = '600 18px system-ui'; ctx.globalAlpha = .85; ctx.fillText(speed, 18, 66);
+    const hint = (rate > 1.05 ? 'Playback ' + rate.toFixed(1) + 'x real time. ' : '') + (paused ? 'Paused, click to play' : 'Click to pause');
+    const used = ctx.measureText(speed).width; ctx.font = '12px system-ui'; ctx.globalAlpha = .7;
+    if (used + ctx.measureText(hint).width + 60 < W) { ctx.textAlign = 'right'; ctx.fillText(hint, W - 16, 66); }
+    ctx.globalAlpha = .25; ctx.fillRect(0, 82, W, 1);
   }
-  ctx.globalAlpha = .8; ctx.fillRect(x0, 34, 2, H - 70);
-  ctx.textAlign = 'left'; ctx.font = '600 12px system-ui';
-  ctx.fillText('Brakes applied at ' + D.v0 + ' km/h', x0 + 8, 24); ctx.globalAlpha = 1;
+  const mid = TOP + 122;
+  ctx.strokeStyle = ROAD[1]; ctx.globalAlpha = .35; ctx.setLineDash([18, 16]); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke(); ctx.setLineDash([]);
+  const step = [5, 10, 20, 50, 100].find(k => maxD / k <= 9) || 200;
+  ctx.fillStyle = ROAD[1]; ctx.globalAlpha = 1; ctx.font = '13px system-ui'; ctx.textAlign = 'center';
+  for (let m = 0; m <= maxD * 1.06; m += step) {
+    ctx.fillRect(x0 + m * s, H - 32, 1, 8); ctx.fillText(m + ' m', x0 + m * s, H - 8);
+  }
+  ctx.globalAlpha = .8; ctx.fillRect(x0, TOP + 10, 2, H - TOP - 48);
+  ctx.textAlign = 'right'; ctx.font = '600 13px system-ui';
+  ctx.fillText('Brakes on', x0 - 8, TOP + 24); ctx.globalAlpha = 1;
   if (t >= Math.min(D.ref.t.at(-1), D.sel.t.at(-1)) && D.residual > 0) {
     const xs = x0 + D.firstStop * s;
     const msg = (D.firstIsRef ? 'Selected setup' : D.refName) + ' still doing ' + D.residual + ' km/h at this point';
     ctx.strokeStyle = ROAD[1]; ctx.setLineDash([5, 5]); ctx.beginPath();
-    ctx.moveTo(xs, D.firstIsRef ? 60 : 150); ctx.lineTo(xs, D.firstIsRef ? 150 : 244); ctx.stroke(); ctx.setLineDash([]);
-    ctx.font = '600 14px system-ui'; const mw = ctx.measureText(msg).width + 24;
+    ctx.moveTo(xs, D.firstIsRef ? mid - 98 : mid); ctx.lineTo(xs, D.firstIsRef ? mid : mid + 98); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = '600 16px system-ui'; const mw = ctx.measureText(msg).width + 28;
     const mx = Math.min(Math.max(xs - mw / 2, 8), W - mw - 8);
-    ctx.fillStyle = ROAD[1]; ctx.beginPath(); ctx.roundRect(mx, 136, mw, 28, 14); ctx.fill();
-    ctx.fillStyle = ROAD[0]; ctx.textAlign = 'left'; ctx.fillText(msg, mx + 12, 155);
+    ctx.fillStyle = ROAD[1]; ctx.beginPath(); ctx.roundRect(mx, mid - 16, mw, 32, 16); ctx.fill();
+    ctx.fillStyle = ROAD[0]; ctx.textAlign = 'left'; ctx.fillText(msg, mx + 14, mid + 6);
   }
-  lane(D.ref, 92, '#b9b8b3', D.refLabel, t, x0, s);
-  lane(D.sel, 212, '#2a78d6', D.selLabel, t, x0, s);
-  if (rate > 1.05) {
-    ctx.fillStyle = ROAD[1]; ctx.globalAlpha = .7; ctx.font = '12px system-ui'; ctx.textAlign = 'right';
-    ctx.fillText('Playback ' + rate.toFixed(1) + 'x real time', W - 14, 24); ctx.globalAlpha = 1;
-  }
-  ctx.fillStyle = ROAD[1]; ctx.globalAlpha = .7; ctx.font = '12px system-ui'; ctx.textAlign = 'right';
-  ctx.fillText(paused ? 'Paused. Click to play' : 'Click to pause', W - 14, rate > 1.05 ? 40 : 24); ctx.globalAlpha = 1;
+  lane(D.ref, mid - 64, '#b9b8b3', D.refLabel, t, x0, s);
+  lane(D.sel, mid + 64, '#2a78d6', D.selLabel, t, x0, s);
   requestAnimationFrame(frame);
 }
 cv.style.cursor = 'pointer'; cv.addEventListener('click', () => { paused = !paused; });
 fit(); window.addEventListener('resize', fit); requestAnimationFrame(frame);
 </script>
-""".replace("__DATA__", json.dumps(data))
-    st.iframe(html, height=308)
+""".replace("__DATA__", json.dumps(data)).replace("__HEIGHT__", str(canvas_height))
+    st.iframe(html, height=canvas_height + 8)
 
 
 def difference(delta, unit, more, less):
@@ -462,16 +478,19 @@ def grip_envelope_chart(sel, ref):
 
 
 def demo_banner(index, conditions):
-    """Large heading for demo mode: which scenario is playing and the conditions it sets, readable from across a room."""
+    """
+    Large heading for demo mode: which scenario is playing and the conditions it sets, readable
+    from across a room. It stands in for the page title, which demo mode hides to save height.
+    """
     chip = (f'display:inline-block;background:#ffffff;border:1px solid {GRID};border-radius:999px;'
             f'padding:6px 16px;margin:0 8px 6px 0;font-size:1.25rem;font-weight:600;color:{INK}')
     steps = "".join(f'<span style="display:inline-block;width:28px;height:6px;border-radius:3px;margin-right:5px;'
                     f'background:{SELECTED if i == index else GRID}"></span>' for i in range(len(SCENARIOS)))
     st.html(f"""
-<div style="background:#eef4fd;border-left:8px solid {SELECTED};border-radius:12px;padding:18px 24px 14px">
+<div style="background:#eef4fd;border-left:8px solid {SELECTED};border-radius:12px;padding:14px 24px 8px">
   <div style="font-size:0.95rem;font-weight:700;letter-spacing:0.08em;color:{SELECTED};margin-bottom:6px">
-    DEMO {index + 1} OF {len(SCENARIOS)} &nbsp; {steps}</div>
-  <div style="font-size:2.1rem;font-weight:700;line-height:1.2;color:{INK};margin-bottom:12px">{SCENARIOS[index]["title"]}</div>
+    ESA-03 TIRE EXPLORER &nbsp;|&nbsp; DEMO {index + 1} OF {len(SCENARIOS)} &nbsp; {steps}</div>
+  <div style="font-size:2rem;font-weight:700;line-height:1.2;color:{INK};margin-bottom:10px">{SCENARIOS[index]["title"]}</div>
   <div>{"".join(f'<span style="{chip}">{c}</span>' for c in conditions)}</div>
 </div>""")
 
@@ -561,6 +580,7 @@ st.markdown("""
 [data-testid="stMetric"] {background: #fcfcfb; border: 1px solid #e6e5e1; border-radius: 12px; padding: 14px 16px;}
 [data-testid="stMetricValue"] {font-size: 2rem;}
 h1 {font-size: 2rem !important; margin-bottom: 0 !important;}
+[data-testid="stImage"] img {max-height: 430px; object-fit: contain;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -639,13 +659,16 @@ ref_label = f"{ref_name}: {oem_w}/{oem_a}R{oem_r} {ss.ref_compound.split(' ')[0]
 # Page
 # ----------------------------------------------------------------------------
 
-st.title("How tire size and type change stopping, slip and safety")
-st.caption(f"ESA-03 Fleet Tire Optimization Strategy  |  {ss.season}, {ss.surface.lower()}, {ss.temp} °C  |  "
-           f"{sel_label}  against  {ref_label}")
 if ss.demo:
+    st.markdown("<style>.block-container {padding-top: 2rem;} "
+                '[data-testid="stImage"] img {max-height: 390px;}</style>', unsafe_allow_html=True)
     demo_banner(ss.demo_index, [ss.season, ss.surface, f"{ss.temp} °C", f"Braking from {ss.speed} km/h",
                                 f"{size_name} {ss.compound.split(' ')[0].lower()} tire", f"{ss.tread:.0f} mm tread"])
     demo_ticker()
+else:
+    st.title("How tire size and type change stopping, slip and safety")
+    st.caption(f"ESA-03 Fleet Tire Optimization Strategy  |  {ss.season}, {ss.surface.lower()}, {ss.temp} °C  |  "
+               f"{sel_label}  against  {ref_label}")
 
 delta_m = sel["distance"] - ref["distance"]
 residual = speed_at_distance(sel["profile"], ref["distance"])
@@ -666,15 +689,22 @@ else:
     k5.metric("Grip lost if wheels lock", f"{100 * (1 - sel['locked_mu'] / sel['mu']):.0f}%",
               f"Peak at {sel['peak_slip']:.0f}% slip", delta_color="off")
 
+braking_note = (f"Braking distance only. Add {ss.speed / 3.6 * REACTION_S:.0f} m travelled during a {REACTION_S} s driver "
+                f"reaction at {ss.speed} km/h. Modelled values for comparison, not a measurement of any specific tire.")
 left, right = st.columns([1.45, 1])
 with left:
-    braking_animation(sel, ref, env, sel_label, ref_label, ref_name)
-    st.caption(f"Braking distance only. Add {ss.speed / 3.6 * REACTION_S:.0f} m travelled during a {REACTION_S} s driver "
-               f"reaction at {ss.speed} km/h. Modelled values for comparison, not a measurement of any specific tire.")
+    braking_animation(sel, ref, env, sel_label, ref_label, ref_name, ss.surface, header=not ss.demo)
+    if not ss.demo:
+        st.caption(braking_note)
     verdict(delta_m, residual, ref_name)
 with right:
     tire_diagram(sel, ref, ref_name)
 
+if ss.demo:
+    st.html(f'<div style="text-align:center;color:{INK_2};font-size:1rem;padding:2px 0 10px">'
+            'Scroll down for the comparison charts &darr;</div>')
+    st.divider()
+    st.caption(braking_note)
 if not technical:
     c1, c2 = st.columns([1.2, 1])
     with c1:
