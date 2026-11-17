@@ -5,15 +5,16 @@ Streamlit display that sits beside the poster for the Fleet Tire Optimization St
 ## Layout
 
 - `tire_model.py`: the model. Lookup tables and pure functions, no Streamlit. `evaluate(cfg, env)` returns every output for one tire setup in one condition.
-- `app.py`: the Streamlit page. Sidebar controls, braking animation (HTML canvas in `st.iframe`), tire diagram (SVG), Plotly charts, Simple and Technical views, demo mode.
+- `app.py`: the Streamlit page. Sidebar controls, braking animation (HTML canvas in `st.iframe`), tire size picture (SVG drawn to scale, shown with `st.image`), Plotly charts, Simple and Technical views, demo mode.
 - `tests/test_model.py`: calibration anchors and sanity checks for the model.
+- `tests/test_app.py`: smoke test that the page renders in both views and in demo mode.
 - `.streamlit/config.toml`: light theme and minimal toolbar for the hosted version.
 
 ## Commands
 
 - Run: `streamlit run app.py`
 - Test: `python -m pytest -q`
-- Install: `pip install -r requirements.txt` (add `pytest` for tests)
+- Install: `pip install -r requirements.txt` (`requirements-dev.txt` adds `pytest`)
 
 ## Rules for changes
 
@@ -21,8 +22,8 @@ Streamlit display that sits beside the poster for the Fleet Tire Optimization St
 - Any change to friction tables, exponents or the hydroplaning formula must keep `tests/test_model.py` passing. If an anchor needs to move, cite the test or paper that justifies it in the test docstring and in the "Model and sources" tab.
 - Keep the model free of Streamlit imports.
 - Keep code simple and readable: plain functions and dicts, no clever abstractions. Explain in prose (docstrings, README, the model tab), not inline comments.
-- UI wording is plain language for a poster audience. The Simple view carries no jargon; the Technical view may.
-- Chart colours: selected setup is blue `#2a78d6`, reference is grey dashed, tire types keep their fixed colours in `COMPOUND_COLOR`. Do not reuse status colours for series.
+- UI wording is plain language for a poster audience. The Simple view carries no jargon; the Technical view may. The comparison tire is called the "factory tire" in the Simple view and the "reference" in the Technical view; pass `ref_name` rather than hard-coding either word in shared components.
+- Chart colours: selected setup is blue `#2a78d6`, reference is grey dashed, a longer braking distance in the one-change-at-a-time chart is dark grey `#52514e`, tire types keep their fixed colours in `COMPOUND_COLOR`. Do not reuse status colours for series.
 - Streamlit is pinned in `requirements.txt`. `st.iframe` and `width="stretch"` need a recent version, so do not lower the pin without testing.
 
 ## Known gaps
