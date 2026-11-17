@@ -26,6 +26,10 @@ Streamlit display that sits beside the poster for the ESA-03 Fleet Tire Optimiza
 - Chart colours: selected setup is blue `#2a78d6`, reference is grey dashed, a longer braking distance in the one-change-at-a-time chart is dark grey `#52514e`, tire types keep their fixed colours in `COMPOUND_COLOR`. Do not reuse status colours for series.
 - Streamlit is pinned in `requirements.txt`. `st.iframe` and `width="stretch"` need a recent version, so do not lower the pin without testing.
 
+## Demo mode layout
+
+Demo mode is meant to run full screen on a 13-inch laptop with the sidebar collapsed. Its first screen (banner, three metrics, braking animation, verdict and tire picture) must fit in about 800 px of height, with the comparison charts one scroll below. To keep it that short, demo mode hides the page title, drops the heading inside the animation and caps the tire picture height. Check at 1440 x 800 after changing anything above the divider.
+
 ## Known gaps
 
 - Vehicle classes in `VEHICLES` are generic placeholders. Replace with the ESA fleet list and factory sizes when available.
