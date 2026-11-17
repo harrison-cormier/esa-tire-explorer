@@ -22,6 +22,7 @@ REACTION_S = 1.5
 LIFT_LIMIT_KG = 23
 CAR_LENGTH_M = 4.5
 DEMO_SECONDS = 14
+FUEL_DOT_STEP = 0.03
 
 COMPOUND_COLOR = {
     "Summer": "#eb6834",
@@ -160,46 +161,128 @@ fit(); window.addEventListener('resize', fit); requestAnimationFrame(frame);
     st.iframe(html, height=308)
 
 
+def difference(delta, unit, more, less):
+    """Plain words for a change from the factory size, and whether there is a change at all."""
+    amount = round(abs(delta))
+    if amount == 0:
+        return "same as factory", False
+    if unit == "inch" and amount != 1:
+        unit = "inches"
+    return f"{amount} {unit} {more if delta > 0 else less}", True
+
+
 def tire_diagram(sel, ref):
-    s = 0.22
-    ground = 214
+    """
+    Picture of the selected tire for a poster audience, in three parts.
 
-    def wheel(geo, cx, ghost):
+    The top row spells out the size code as it is printed on a sidewall and says what each
+    number means and how it differs from the factory size. The middle row draws the tire to
+    scale from the front (where width shows) and from the side (where rim and sidewall show),
+    with the factory size as a dashed outline standing on the same ground line. The bottom
+    row draws the footprint on the road. The drawing scale is fixed per vehicle so the tire
+    visibly grows and shrinks as the controls move, and only tightens for very tall tires.
+    """
+    g, f = sel["geo"], ref["geo"]
+    s = 150 / max(g["diameter"], 1.12 * f["diameter"])
+    ground, front_x, side_x = 318, 72, 256
+    ghost = f'fill="none" stroke="{REFERENCE}" stroke-width="1.5" stroke-dasharray="5 4"'
+    halo = 'fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="3"'
+    label = f'fill="{INK_2}" font-size="12"'
+    value = f'fill="{INK}" font-size="12.5" font-weight="700"'
+    measure = f'stroke="{SELECTED}" stroke-width="1.5"'
+
+    def front(geo, outline):
+        w, h = geo["width"] * s, geo["diameter"] * s
+        x, y, corner = front_x - w / 2, ground - h, min(geo["width"] * s * 0.3, 16)
+        box = f'x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{corner:.1f}"'
+        if outline:
+            return f'<rect {box} {halo}/><rect {box} {ghost}/>'
+        grooves = "".join(f'<line x1="{x + w * k:.1f}" y1="{y + 5:.1f}" x2="{x + w * k:.1f}" y2="{ground - 5}" '
+                          f'stroke="#77766f" stroke-width="2"/>' for k in (0.3, 0.5, 0.7))
+        cuts = "".join(f'<line x1="{x + 3:.1f}" y1="{yy:.1f}" x2="{x + w * 0.3 - 3:.1f}" y2="{yy + 3:.1f}" stroke="#77766f"/>'
+                       f'<line x1="{x + w * 0.7 + 3:.1f}" y1="{yy + 3:.1f}" x2="{x + w - 3:.1f}" y2="{yy:.1f}" stroke="#77766f"/>'
+                       for yy in np.arange(y + corner, ground - corner, 9))
+        return f'<rect {box} fill="#2b2b2a"/>{grooves}{cuts}'
+
+    def side(geo, outline):
         r_tire, r_rim = geo["diameter"] / 2 * s, geo["rim"] * 25.4 / 2 * s
+        centre = f'cx="{side_x}" cy="{ground - r_tire:.1f}"'
+        if outline:
+            return "".join(f'<circle {centre} r="{r:.1f}" {halo}/><circle {centre} r="{r:.1f}" {ghost}/>'
+                           for r in (r_tire, r_rim))
         cy = ground - r_tire
-        if ghost:
-            style = f'fill="none" stroke="{REFERENCE}" stroke-width="1.5" stroke-dasharray="5 4"'
-            return f'<circle cx="{cx}" cy="{cy}" r="{r_tire}" {style}/><circle cx="{cx}" cy="{cy}" r="{r_rim}" {style}/>'
-        return (f'<circle cx="{cx}" cy="{cy}" r="{r_tire}" fill="#2b2b2a"/>'
-                f'<circle cx="{cx}" cy="{cy}" r="{r_rim}" fill="#dddcd8" stroke="#a9a8a3"/>'
-                f'<circle cx="{cx}" cy="{cy}" r="{r_rim * 0.22}" fill="#a9a8a3"/>')
+        spokes = "".join(f'<line x1="{side_x}" y1="{cy:.1f}" x2="{side_x + 0.9 * r_rim * math.sin(a):.1f}" '
+                         f'y2="{cy - 0.9 * r_rim * math.cos(a):.1f}" stroke="#bdbcb7" stroke-width="{r_rim * 0.2:.1f}" '
+                         f'stroke-linecap="round"/>' for a in np.arange(5) * 2 * math.pi / 5 + math.pi / 5)
+        return (f'<circle {centre} r="{r_tire:.1f}" fill="#2b2b2a"/>'
+                f'<circle {centre} r="{r_tire - 4:.1f}" fill="none" stroke="#55544f"/>'
+                f'<circle {centre} r="{r_rim:.1f}" fill="#e9e8e4" stroke="#a9a8a3"/>{spokes}'
+                f'<circle {centre} r="{r_rim * 0.2:.1f}" fill="#a9a8a3"/>')
 
-    def patch(result, cx, cy, ghost):
-        k = 0.5
+    def footprint(result, k, outline):
         w, h = result["patch_width"] * k, result["patch_length"] * k
-        style = (f'fill="none" stroke="{REFERENCE}" stroke-width="1.5" stroke-dasharray="5 4"' if ghost
-                 else f'fill="{SELECTED}" fill-opacity="0.85"')
-        return f'<rect x="{cx - w / 2}" y="{cy - h / 2}" width="{w}" height="{h}" rx="{min(h / 2, 16)}" {style}/>'
+        box = f'x="{front_x - w / 2:.1f}" y="{404 - h / 2:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{min(h / 2, w / 2, 14):.1f}"'
+        return f'<rect {box} {ghost}/>' if outline else f'<rect {box} fill="{SELECTED}" fill-opacity="0.85"/>'
 
-    g = sel["geo"]
-    text = f'font-family="system-ui,-apple-system,Segoe UI,sans-serif" fill="{INK_2}" font-size="12"'
+    def code_column(x, number, line_1, line_2, change):
+        words, changed = change
+        note = f'fill="{SELECTED}" font-weight="700"' if changed else f'fill="{REFERENCE}"'
+        return (f'<text x="{x}" y="62" text-anchor="middle" fill="{INK}" font-size="36" font-weight="700">{number}</text>'
+                f'<text x="{x}" y="80" text-anchor="middle" {label}>{line_1}</text>'
+                f'<text x="{x}" y="94" text-anchor="middle" {label}>{line_2}</text>'
+                f'<text x="{x}" y="110" text-anchor="middle" font-size="12" {note}>{words}</text>')
+
+    same_size = all(g[k] == f[k] for k in ("width", "aspect", "rim"))
+    r_tire, r_rim = g["diameter"] / 2 * s, g["rim"] * 25.4 / 2 * s
+    top, cy, half = ground - 2 * r_tire, ground - r_tire, g["width"] * s / 2
+    note_x = side_x + max(r_tire, f["diameter"] / 2 * s) + 8
+    k = min(0.42, 60 / max(sel["patch_length"], ref["patch_length"]), 104 / max(sel["patch_width"], ref["patch_width"]))
+    patch_change = ", ".join(words for words, changed in (
+        difference(sel["patch_width"] - ref["patch_width"], "mm", "wider", "narrower"),
+        difference(sel["patch_length"] - ref["patch_length"], "mm", "longer", "shorter")) if changed)
+    height_words, height_changed = difference(g["diameter"] - f["diameter"], "mm", "taller", "shorter")
+
     svg = f"""
-<svg viewBox="0 0 470 300" style="width:100%;background:{SURFACE};border:1px solid {GRID};border-radius:12px">
-  <text x="16" y="24" {text} font-weight="600" style="fill:{INK}">Side view</text>
-  <text x="270" y="24" {text} font-weight="600" style="fill:{INK}">Contact patch from above</text>
-  <line x1="12" y1="{ground}" x2="232" y2="{ground}" stroke="{GRID}" stroke-width="2"/>
-  {wheel(g, 122, False)}{wheel(ref["geo"], 122, True)}
-  {patch(sel, 360, 118, False)}{patch(ref, 360, 118, True)}
-  <text x="122" y="236" text-anchor="middle" {text}>Overall diameter {g["diameter"]:.0f} mm</text>
-  <text x="122" y="253" text-anchor="middle" {text}>Sidewall {g["sidewall"]:.0f} mm on a {g["rim"]}-inch rim</text>
-  <text x="360" y="236" text-anchor="middle" {text}>{sel["patch_width"]:.0f} mm wide x {sel["patch_length"]:.0f} mm long</text>
-  <text x="360" y="253" text-anchor="middle" {text}>Direction of travel: up the page</text>
-  <rect x="16" y="272" width="14" height="10" rx="2" fill="{SELECTED}"/>
-  <text x="36" y="281" {text}>Selected</text>
-  <line x1="110" y1="277" x2="134" y2="277" stroke="{REFERENCE}" stroke-width="1.5" stroke-dasharray="5 4"/>
-  <text x="140" y="281" {text}>Reference (factory size)</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 444" role="img"
+     font-family="system-ui,-apple-system,Segoe UI,sans-serif" aria-label="Tire size {g['width']}/{g['aspect']}R{g['rim']} drawn to scale against the factory size">
+  <rect x="0.5" y="0.5" width="419" height="443" rx="12" fill="{SURFACE}" stroke="{GRID}"/>
+  <text x="16" y="22" fill="{INK}" font-size="13" font-weight="600">What the size printed on the tire means</text>
+  {code_column(76, g["width"], "width", "in millimetres", difference(g["width"] - f["width"], "mm", "wider", "narrower"))}
+  <text x="143" y="60" text-anchor="middle" fill="{REFERENCE}" font-size="32">/</text>
+  {code_column(210, g["aspect"], "sidewall height", "as a % of the width", difference(g["sidewall"] - f["sidewall"], "mm", "taller", "shorter"))}
+  <text x="277" y="60" text-anchor="middle" fill="{REFERENCE}" font-size="30">R</text>
+  {code_column(344, g["rim"], "wheel (rim) size", "in inches", difference(g["rim"] - f["rim"], "inch", "larger", "smaller"))}
+
+  <text x="{front_x}" y="136" text-anchor="middle" {label} font-weight="600">From the front</text>
+  <text x="{side_x}" y="136" text-anchor="middle" {label} font-weight="600">From the side</text>
+  <line x1="326" y1="132" x2="348" y2="132" {ghost}/>
+  <text x="352" y="136" fill="{INK_2}" font-size="11">factory size</text>
+  <line x1="12" y1="{ground}" x2="408" y2="{ground}" stroke="{GRID}" stroke-width="2"/>
+  {front(g, False)}{side(g, False)}
+  {"" if same_size else front(f, True) + side(f, True)}
+
+  <path d="M{front_x - half:.1f} {top - 13:.1f}v8m0 -4h{2 * half:.1f}m0 -4v8" fill="none" {measure}/>
+  <text x="{front_x}" y="{top - 16:.1f}" text-anchor="middle" {value}>{g["width"]} mm wide</text>
+  <path d="M136 {top:.1f}h8m-4 0v{2 * r_tire:.1f}m-4 0h8" fill="none" {measure}/>
+  <text transform="translate(131 {cy:.1f}) rotate(-90)" text-anchor="middle" {value}>{g["diameter"]:.0f} mm tall</text>
+  <path d="M{side_x - r_rim:.1f} {cy:.1f}h{2 * r_rim:.1f}" fill="none" {measure}/>
+  <rect x="{side_x - 33}" y="{cy - 27:.1f}" width="66" height="19" rx="9.5" fill="#ffffff" fill-opacity="0.92"/>
+  <text x="{side_x}" y="{cy - 13:.1f}" text-anchor="middle" {value}>{g["rim"]}-inch rim</text>
+  <path d="M{side_x + r_rim:.1f} {cy - 5:.1f}v10m0 -5h{r_tire - r_rim:.1f}m0 -5v10" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="{note_x:.1f}" y="{cy - 3:.1f}" {label}>sidewall</text>
+  <text x="{note_x:.1f}" y="{cy + 12:.1f}" {value}>{g["sidewall"]:.0f} mm</text>
+  <text x="{side_x}" y="336" text-anchor="middle" {label}>{"Same overall height as the factory size" if not height_changed
+                                                             else height_words.capitalize() + " overall than the factory size"}</text>
+
+  <line x1="12" y1="348" x2="408" y2="348" stroke="{GRID}"/>
+  <text x="16" y="366" {label} font-weight="600">Footprint on the road, seen from above</text>
+  {footprint(sel, k, False)}{footprint(ref, k, True)}
+  <path d="M16 428v-44m-4 6l4 -7l4 7" fill="none" stroke="{INK_2}" stroke-width="1.5"/>
+  <text x="134" y="394" {value}>{sel["patch_width"]:.0f} mm wide, {sel["patch_length"]:.0f} mm long</text>
+  <text x="134" y="411" {label}>{patch_change.capitalize() + " than reference" if patch_change else "Same footprint as the reference"}</text>
+  <text x="134" y="428" {label}>Arrow shows the direction of travel</text>
 </svg>"""
-    st.iframe(svg, height=308)
+    st.image(svg.strip(), width="stretch")
 
 
 def style(fig, height=340, title=None):
@@ -361,8 +444,38 @@ def grip_envelope_chart(sel, ref):
     return style(fig, 400, "Grip envelope: braking and cornering share one budget")
 
 
-def dots(ratio):
-    filled = int(min(max(math.floor(3.5 + 10 * (ratio - 1)), 1), 5))
+def demo_banner(index, conditions):
+    """Large heading for demo mode: which scenario is playing and the conditions it sets, readable from across a room."""
+    chip = (f'display:inline-block;background:#ffffff;border:1px solid {GRID};border-radius:999px;'
+            f'padding:6px 16px;margin:0 8px 6px 0;font-size:1.25rem;font-weight:600;color:{INK}')
+    steps = "".join(f'<span style="display:inline-block;width:28px;height:6px;border-radius:3px;margin-right:5px;'
+                    f'background:{SELECTED if i == index else GRID}"></span>' for i in range(len(SCENARIOS)))
+    st.html(f"""
+<div style="background:#eef4fd;border-left:8px solid {SELECTED};border-radius:12px;padding:18px 24px 14px">
+  <div style="font-size:0.95rem;font-weight:700;letter-spacing:0.08em;color:{SELECTED};margin-bottom:6px">
+    DEMO {index + 1} OF {len(SCENARIOS)} &nbsp; {steps}</div>
+  <div style="font-size:2.1rem;font-weight:700;line-height:1.2;color:{INK};margin-bottom:12px">{SCENARIOS[index]["title"]}</div>
+  <div>{"".join(f'<span style="{chip}">{c}</span>' for c in conditions)}</div>
+</div>""")
+
+
+def verdict(delta_m, residual):
+    """One plain sentence on whether the selected setup stops sooner or later than the reference."""
+    cars = abs(delta_m) / CAR_LENGTH_M
+    lengths = "less than one car length" if cars < 0.75 else f"about {cars:.0f} car length{'s' if cars >= 1.5 else ''}"
+    if abs(delta_m) < 0.5:
+        st.info("On this road the selected setup stops in about the same distance as the reference.", icon=":material/drag_handle:")
+    elif delta_m < 0:
+        st.success(f"The selected setup stops {abs(delta_m):.1f} m sooner than the reference: {lengths}.",
+                   icon=":material/check_circle:")
+    else:
+        st.error(f"The selected setup needs {delta_m:.1f} m more to stop than the reference: {lengths}. "
+                 f"It is still doing {residual:.0f} km/h where the reference has stopped.", icon=":material/warning:")
+
+
+def dots(ratio, step=0.10):
+    """Five-dot rating against the reference. Each dot is one `step` of change, and three dots means within half a step."""
+    filled = int(min(max(math.floor(3.5 + (ratio - 1) / step), 1), 5))
     word = {1: "Much worse", 2: "Worse", 3: "About the same", 4: "Better", 5: "Much better"}[filled]
     return "●" * filled + "○" * (5 - filled), word
 
@@ -477,7 +590,7 @@ with st.sidebar:
         st.session_state.aspect = matched_aspect(st.session_state.width, st.session_state.rim, oem_geo["diameter"])
     else:
         st.select_slider("Aspect ratio (sidewall height as % of width)", list(range(30, 90, 5)), key="aspect")
-    st.slider("Tread depth remaining (mm)", 1.6, 9.0, key="tread", step=0.2)
+    st.slider("Tread depth remaining (mm)", 1.6, 9.0, key="tread", step=0.2, format="%.1f")
     st.slider("Pressure set in the shop at 20 °C (psi)", 24, 44, key="pressure")
     st.toggle("Pressure topped up for outside temperature", key="adjusted")
 
@@ -505,16 +618,18 @@ st.title("How tire size and type change stopping, slip and safety")
 st.caption(f"ESA-03 Fleet Tire Optimization Strategy  |  {ss.season}, {ss.surface.lower()}, {ss.temp} °C  |  "
            f"{sel_label}  against  {ref_label}")
 if ss.demo:
-    st.info(f"Demo {ss.demo_index + 1} of {len(SCENARIOS)}: {SCENARIOS[ss.demo_index]['title']}", icon=":material/play_circle:")
+    demo_banner(ss.demo_index, [ss.season, ss.surface, f"{ss.temp} °C", f"Braking from {ss.speed} km/h",
+                                f"{size_name} {ss.compound.split(' ')[0].lower()} tire", f"{ss.tread:.0f} mm tread"])
     demo_ticker()
 
 delta_m = sel["distance"] - ref["distance"]
 residual = speed_at_distance(sel["profile"], ref["distance"])
 technical = ss.view != "Simple"
 k1, k2, k3, k4, k5 = st.columns(5) if technical else st.columns(3) + [None, None]
-k1.metric("Braking distance", f"{sel['distance']:.1f} m", f"{delta_m:+.1f} m vs reference", delta_color="inverse")
-k2.metric("Speed at reference stop point", f"{residual:.0f} km/h",
-          "Already stopped" if delta_m <= 0 else "Still moving", delta_color="normal" if delta_m <= 0 else "inverse")
+k1.metric("Braking distance", f"{sel['distance']:.1f} m", f"{round(delta_m, 1) + 0:+.1f} m vs reference", delta_color="inverse")
+k2.metric("Speed at reference stop" if technical else "Speed where the reference has stopped", f"{residual:.0f} km/h",
+          "Already stopped" if delta_m <= 0 else "Still moving", delta_color="normal" if delta_m <= 0 else "inverse",
+          delta_arrow="off")
 if not technical:
     k3.metric("Grip limit on a highway ramp", f"{sel['corner']:.0f} km/h", f"{sel['corner'] - ref['corner']:+.0f} km/h vs reference")
 else:
@@ -526,24 +641,16 @@ else:
     k5.metric("Grip lost if wheels lock", f"{100 * (1 - sel['locked_mu'] / sel['mu']):.0f}%",
               f"Peak at {sel['peak_slip']:.0f}% slip", delta_color="off")
 
-left, right = st.columns([1.75, 1])
+left, right = st.columns([1.45, 1])
 with left:
     braking_animation(sel, ref, env, sel_label, ref_label)
+    st.caption(f"Braking distance only. Add {ss.speed / 3.6 * REACTION_S:.0f} m travelled during a {REACTION_S} s driver "
+               f"reaction at {ss.speed} km/h. Modelled values for comparison, not a measurement of any specific tire.")
+    verdict(delta_m, residual)
 with right:
     tire_diagram(sel, ref)
-st.caption(f"Braking distance only. Add {ss.speed / 3.6 * REACTION_S:.0f} m travelled during a {REACTION_S} s driver "
-           f"reaction at {ss.speed} km/h. Modelled values for comparison, not a measurement of any specific tire.")
 
 if not technical:
-    cars = abs(delta_m) / CAR_LENGTH_M
-    if abs(delta_m) < 0.5:
-        st.info("On this road the selected setup stops in about the same distance as the reference.", icon=":material/drag_handle:")
-    elif delta_m < 0:
-        st.success(f"The selected setup stops {abs(delta_m):.0f} m sooner than the reference: about {cars:.0f} car lengths.",
-                   icon=":material/check_circle:")
-    else:
-        st.error(f"The selected setup needs {delta_m:.0f} m more to stop than the reference: about {cars:.0f} car lengths. "
-                 f"It is still doing {residual:.0f} km/h where the reference has stopped.", icon=":material/warning:")
     c1, c2 = st.columns([1.2, 1])
     with c1:
         show(car_length_chart(sel, ref, ss.speed))
@@ -552,9 +659,9 @@ if not technical:
         if sel["v_hp"]:
             ratings.append(("Staying in contact through water or slush", sel["v_hp"] / ref["v_hp"]))
         ratings += [("Ride comfort", 100 / sel["harshness"]), ("Pothole protection", 100 / sel["impact_risk"]),
-                    ("Fuel economy", 1 - (sel["fuel_delta"] - ref["fuel_delta"]) / 100)]
+                    ("Fuel economy", 1 - (sel["fuel_delta"] - ref["fuel_delta"]) / 100, FUEL_DOT_STEP)]
         table = "| Compared with the reference | Rating | |\n|---|---|---|\n"
-        table += "\n".join(f"| {name} | {dots(r)[0]} | {dots(r)[1]} |" for name, r in ratings)
+        table += "\n".join(f"| {name} | {dots(*r)[0]} | {dots(*r)[1]} |" for name, *r in ratings)
         st.markdown(table)
         st.caption("Three dots means the same as the factory-size reference tire. Switch to the Technical view for the numbers behind each rating.")
     st.stop()
@@ -667,11 +774,12 @@ with tabs[4]:
     rows.append(("Tread depth", f"{ss.tread:.1f} mm", status(0 if ss.tread >= 4 else 1 if ss.tread >= 3 else 2),
                  "Wet and snow grip fall away quickly below about 4 mm."))
     drift = pressure_at_temperature(ss.pressure, ss.temp)
-    drop = 100 * (1 - running_psi / veh["placard"])
+    off_placard = 100 * abs(running_psi / veh["placard"] - 1)
     rows.append(("Running pressure", f"{running_psi:.0f} psi (placard {veh['placard']} psi). "
                  f"Set at 20 °C and left alone it would read {drift:.0f} psi at {ss.temp} °C",
-                 status(0 if drop < 10 else 1 if drop < 20 else 2),
-                 "Under-inflation lowers hydroplaning speed, dulls steering and overheats the tire."))
+                 status(0 if off_placard < 10 else 1 if off_placard < 20 else 2),
+                 "Under-inflation lowers hydroplaning speed, dulls steering and overheats the tire. "
+                 "Over-inflation shrinks the footprint and hardens the ride."))
     rows.append(("Speedometer error", f"{sel['speedo']:+.1f}% true speed vs indicated",
                  status(0 if abs(sel["speedo"]) <= 3 else 1),
                  "A taller tire makes the vehicle faster than the dial shows."))

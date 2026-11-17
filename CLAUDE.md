@@ -5,8 +5,9 @@ Streamlit display that sits beside the poster for the ESA-03 Fleet Tire Optimiza
 ## Layout
 
 - `tire_model.py`: the model. Lookup tables and pure functions, no Streamlit. `evaluate(cfg, env)` returns every output for one tire setup in one condition.
-- `app.py`: the Streamlit page. Sidebar controls, braking animation (HTML canvas in `st.iframe`), tire diagram (SVG), Plotly charts, Simple and Technical views, demo mode.
+- `app.py`: the Streamlit page. Sidebar controls, braking animation (HTML canvas in `st.iframe`), tire size picture (SVG drawn to scale, shown with `st.image`), Plotly charts, Simple and Technical views, demo mode.
 - `tests/test_model.py`: calibration anchors and sanity checks for the model.
+- `tests/test_app.py`: smoke test that the page renders in both views and in demo mode.
 - `.streamlit/config.toml`: light theme and minimal toolbar for the hosted version.
 
 ## Commands
