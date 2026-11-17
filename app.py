@@ -32,7 +32,7 @@ COMPOUND_COLOR = {
 }
 
 SCENARIOS = [
-    dict(title="Packed snow: winter tires against the all-season reference",
+    dict(title="Packed snow: winter tires against the factory tire",
          season="Winter", surface="Packed snow", temp=-10, compound="Winter", dw=0, dr=0, tread=8.0),
     dict(title="Packed snow: narrower winter fitment on a smaller rim",
          season="Winter", surface="Packed snow", temp=-10, compound="Winter", dw=-20, dr=-1, tread=8.0),
@@ -57,13 +57,14 @@ SURFACE = "#fcfcfb"
 SELECTED = "#2a78d6"
 REFERENCE = "#8a8984"
 WORSE = "#d03b3b"
+LONGER = "#52514e"
 
 # ----------------------------------------------------------------------------
 # Visual components
 # ----------------------------------------------------------------------------
 
 
-def braking_animation(sel, ref, env, sel_label, ref_label):
+def braking_animation(sel, ref, env, sel_label, ref_label, ref_name):
     def sample(profile):
         idx = np.linspace(0, len(profile["t"]) - 1, 81).astype(int)
         return dict(t=profile["t"][idx].round(3).tolist(), d=profile["d"][idx].round(2).tolist(),
@@ -72,7 +73,7 @@ def braking_animation(sel, ref, env, sel_label, ref_label):
     first, other = (ref, sel) if ref["distance"] <= sel["distance"] else (sel, ref)
     data = dict(
         ref=sample(ref["profile"]), sel=sample(sel["profile"]),
-        refLabel=ref_label, selLabel=sel_label, v0=env["speed"], surface=env["surface"],
+        refLabel=ref_label, selLabel=sel_label, refName=ref_name, v0=env["speed"], surface=env["surface"],
         firstIsRef=first is ref, firstStop=round(first["distance"], 1),
         residual=round(speed_at_distance(other["profile"], first["distance"])),
     )
@@ -88,7 +89,7 @@ const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const maxD = Math.max(D.ref.d.at(-1), D.sel.d.at(-1));
 const maxT = Math.max(D.ref.t.at(-1), D.sel.t.at(-1));
 const rate = Math.max(1, maxT / 7), LEAD = 0.7, HOLD = 3.2;
-let W, H = 300;
+let W, H = 300, played = 0, last = null, paused = false;
 
 function fit() {
   const r = window.devicePixelRatio || 1;
@@ -123,7 +124,9 @@ function lane(p, y, color, label, t, x0, s) {
 }
 function frame(ms) {
   const cycle = LEAD + maxT / rate + HOLD;
-  const clock = (ms / 1000) % cycle, t = (clock - LEAD) * rate;
+  if (last !== null && !paused) played += ms - last;
+  last = ms;
+  const clock = (played / 1000) % cycle, t = (clock - LEAD) * rate;
   const x0 = 96, s = (W - x0 - 40) / (maxD * 1.06);
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = ROAD[0]; ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
@@ -139,7 +142,7 @@ function frame(ms) {
   ctx.fillText('Brakes applied at ' + D.v0 + ' km/h', x0 + 8, 24); ctx.globalAlpha = 1;
   if (t >= Math.min(D.ref.t.at(-1), D.sel.t.at(-1)) && D.residual > 0) {
     const xs = x0 + D.firstStop * s;
-    const msg = (D.firstIsRef ? 'Selected setup' : 'Reference') + ' still doing ' + D.residual + ' km/h at this point';
+    const msg = (D.firstIsRef ? 'Selected setup' : D.refName) + ' still doing ' + D.residual + ' km/h at this point';
     ctx.strokeStyle = ROAD[1]; ctx.setLineDash([5, 5]); ctx.beginPath();
     ctx.moveTo(xs, D.firstIsRef ? 60 : 150); ctx.lineTo(xs, D.firstIsRef ? 150 : 244); ctx.stroke(); ctx.setLineDash([]);
     ctx.font = '600 14px system-ui'; const mw = ctx.measureText(msg).width + 24;
@@ -153,8 +156,11 @@ function frame(ms) {
     ctx.fillStyle = ROAD[1]; ctx.globalAlpha = .7; ctx.font = '12px system-ui'; ctx.textAlign = 'right';
     ctx.fillText('Playback ' + rate.toFixed(1) + 'x real time', W - 14, 24); ctx.globalAlpha = 1;
   }
+  ctx.fillStyle = ROAD[1]; ctx.globalAlpha = .7; ctx.font = '12px system-ui'; ctx.textAlign = 'right';
+  ctx.fillText(paused ? 'Paused. Click to play' : 'Click to pause', W - 14, rate > 1.05 ? 40 : 24); ctx.globalAlpha = 1;
   requestAnimationFrame(frame);
 }
+cv.style.cursor = 'pointer'; cv.addEventListener('click', () => { paused = !paused; });
 fit(); window.addEventListener('resize', fit); requestAnimationFrame(frame);
 </script>
 """.replace("__DATA__", json.dumps(data))
@@ -171,7 +177,7 @@ def difference(delta, unit, more, less):
     return f"{amount} {unit} {more if delta > 0 else less}", True
 
 
-def tire_diagram(sel, ref):
+def tire_diagram(sel, ref, ref_name):
     """
     Picture of the selected tire for a poster audience, in three parts.
 
@@ -277,10 +283,11 @@ def tire_diagram(sel, ref):
   <line x1="12" y1="348" x2="408" y2="348" stroke="{GRID}"/>
   <text x="16" y="366" {label} font-weight="600">Footprint on the road, seen from above</text>
   {footprint(sel, k, False)}{footprint(ref, k, True)}
-  <path d="M16 428v-44m-4 6l4 -7l4 7" fill="none" stroke="{INK_2}" stroke-width="1.5"/>
+  <path d="M30 428v-44m-4 6l4 -7l4 7" fill="none" stroke="{INK_2}" stroke-width="1.5"/>
+  <text transform="translate(21 406) rotate(-90)" text-anchor="middle" fill="{INK_2}" font-size="10.5">travel</text>
   <text x="134" y="394" {value}>{sel["patch_width"]:.0f} mm wide, {sel["patch_length"]:.0f} mm long</text>
-  <text x="134" y="411" {label}>{patch_change.capitalize() + " than reference" if patch_change else "Same footprint as the reference"}</text>
-  <text x="134" y="428" {label}>Arrow shows the direction of travel</text>
+  <text x="134" y="411" {label}>{patch_change.capitalize() + f" than {ref_name.lower()}" if patch_change else f"Same footprint as the {ref_name.lower()}"}</text>
+  <text x="134" y="428" {label}>Depends on size, tire type and pressure</text>
 </svg>"""
     st.image(svg.strip(), width="stretch")
 
@@ -322,7 +329,7 @@ def tornado_chart(changes):
     values = [c[1] for c in changes]
     fig = go.Figure(go.Bar(
         x=values, y=labels, orientation="h",
-        marker=dict(color=[SELECTED if v < 0 else WORSE for v in values], cornerradius=4),
+        marker=dict(color=[SELECTED if v < 0 else LONGER for v in values], cornerradius=4),
         text=[f"{round(v, 1) + 0:+.1f}%" for v in values], textposition="outside", textfont=dict(color=INK),
         hovertemplate="%{y}: %{x:+.1f}% braking distance<extra></extra>", cliponaxis=False,
     ))
@@ -330,7 +337,7 @@ def tornado_chart(changes):
     fig.update_xaxes(range=[-span, span], ticksuffix="%", zeroline=True, zerolinecolor=INK_2, zerolinewidth=1)
     fig.update_layout(bargap=0.35)
     fig = style(fig, 36 * len(changes) + 110,
-                 "Change in braking distance from one change at a time (blue shorter, red longer)")
+                 "Change in braking distance from one change at a time (blue shorter, dark grey longer)")
     return fig.update_layout(margin=dict(l=250, t=50, b=40))
 
 
@@ -394,10 +401,10 @@ def slip_chart(sel, ref, surface_name):
     return style(fig, 380, f"Grip against wheel slip on {surface_name.lower()}")
 
 
-def car_length_chart(sel, ref, speed):
+def car_length_chart(sel, ref, speed, ref_name):
     metres = [ref["distance"], sel["distance"]]
     fig = go.Figure(go.Bar(
-        x=metres, y=["Reference", "Selected"], orientation="h", width=0.55,
+        x=metres, y=[ref_name, "Selected"], orientation="h", width=0.55,
         marker=dict(color=[REFERENCE, SELECTED], cornerradius=4),
         text=[f"{m:.0f} m  ≈  {m / CAR_LENGTH_M:.0f} car lengths" for m in metres],
         textposition="outside", textfont=dict(color=INK, size=16), cliponaxis=False,
@@ -405,7 +412,7 @@ def car_length_chart(sel, ref, speed):
     ))
     fig.update_xaxes(range=[0, max(metres) * 1.75], ticksuffix=" m")
     fig.update_yaxes(autorange="reversed", tickfont=dict(size=15, color=INK))
-    return style(fig, 230, f"Distance needed to stop from {speed} km/h").update_layout(margin=dict(l=110, t=50, b=40))
+    return style(fig, 230, f"Distance needed to stop from {speed} km/h").update_layout(margin=dict(l=120, t=50, b=40))
 
 
 def braking_trace_chart(sel, ref, speed):
@@ -459,18 +466,19 @@ def demo_banner(index, conditions):
 </div>""")
 
 
-def verdict(delta_m, residual):
+def verdict(delta_m, residual, ref_name):
     """One plain sentence on whether the selected setup stops sooner or later than the reference."""
+    other = ref_name.lower()
     cars = abs(delta_m) / CAR_LENGTH_M
     lengths = "less than one car length" if cars < 0.75 else f"about {cars:.0f} car length{'s' if cars >= 1.5 else ''}"
     if abs(delta_m) < 0.5:
-        st.info("On this road the selected setup stops in about the same distance as the reference.", icon=":material/drag_handle:")
+        st.info(f"On this road the selected setup stops in about the same distance as the {other}.", icon=":material/drag_handle:")
     elif delta_m < 0:
-        st.success(f"The selected setup stops {abs(delta_m):.1f} m sooner than the reference: {lengths}.",
+        st.success(f"The selected setup stops {abs(delta_m):.1f} m sooner than the {other}: {lengths}.",
                    icon=":material/check_circle:")
     else:
-        st.error(f"The selected setup needs {delta_m:.1f} m more to stop than the reference: {lengths}. "
-                 f"It is still doing {residual:.0f} km/h where the reference has stopped.", icon=":material/warning:")
+        st.error(f"The selected setup needs {delta_m:.1f} m more to stop than the {other}: {lengths}. "
+                 f"It is still doing {residual:.0f} km/h where the {other} has stopped.", icon=":material/warning:")
 
 
 def dots(ratio, step=0.10):
@@ -556,6 +564,8 @@ oem_geo = geometry(oem_w, oem_a, oem_r)
 
 with st.sidebar:
     st.radio("View", ["Simple", "Technical"], key="view", horizontal=True)
+    technical = st.session_state.view != "Simple"
+    ref_name = "Reference" if technical else "Factory tire"
     st.header("Conditions")
     st.radio("Season", list(SEASONS), key="season", horizontal=True, on_change=reset_season)
     season = SEASONS[st.session_state.season]
@@ -590,14 +600,19 @@ with st.sidebar:
         st.session_state.aspect = matched_aspect(st.session_state.width, st.session_state.rim, oem_geo["diameter"])
     else:
         st.select_slider("Aspect ratio (sidewall height as % of width)", list(range(30, 90, 5)), key="aspect")
+    st.caption(f"Size shown: **{st.session_state.width}/{st.session_state.aspect}R{st.session_state.rim}**. "
+               "Sidewall ratios move in steps of 5, so check that a size is sold before quoting it.")
     st.slider("Tread depth remaining (mm)", 1.6, 9.0, key="tread", step=0.2, format="%.1f")
     st.slider("Pressure set in the shop at 20 °C (psi)", 24, 44, key="pressure")
     st.toggle("Pressure topped up for outside temperature", key="adjusted")
 
     st.header("Display")
-    st.selectbox("Reference tire type", COMPOUNDS, key="ref_compound",
-                 help="The reference is always the factory size, new tread, at placard pressure.")
-    st.toggle("Demo mode (cycle through scenarios)", key="demo", on_change=start_demo)
+    st.selectbox(f"{ref_name} type", COMPOUNDS, key="ref_compound",
+                 help=f"The {ref_name.lower()} is what every setup is compared against: always the factory size, "
+                      "new tread, at placard pressure. Choose which tire type it wears.")
+    st.toggle("Demo mode (cycle through scenarios)", key="demo", on_change=start_demo,
+              help="Steps through preset scenarios. Each step resets the conditions and tire setup, "
+                   "so turn it off to explore on your own.")
 
 ss = st.session_state
 env = dict(vehicle=ss.vehicle, surface=SURFACE_KEY[ss.surface], temp=ss.temp, speed=ss.speed)
@@ -608,7 +623,7 @@ sel, ref = evaluate(cfg, env), evaluate(ref_cfg, env)
 
 size_name = f"{ss.width}/{ss.aspect}R{ss.rim}"
 sel_label = f"Selected: {size_name} {ss.compound.split(' ')[0].lower()}"
-ref_label = f"Reference: {oem_w}/{oem_a}R{oem_r} {ss.ref_compound.split(' ')[0].lower()}"
+ref_label = f"{ref_name}: {oem_w}/{oem_a}R{oem_r} {ss.ref_compound.split(' ')[0].lower()}"
 
 # ----------------------------------------------------------------------------
 # Page
@@ -624,14 +639,14 @@ if ss.demo:
 
 delta_m = sel["distance"] - ref["distance"]
 residual = speed_at_distance(sel["profile"], ref["distance"])
-technical = ss.view != "Simple"
+vs = f"vs {ref_name.lower()}"
 k1, k2, k3, k4, k5 = st.columns(5) if technical else st.columns(3) + [None, None]
-k1.metric("Braking distance", f"{sel['distance']:.1f} m", f"{round(delta_m, 1) + 0:+.1f} m vs reference", delta_color="inverse")
-k2.metric("Speed at reference stop" if technical else "Speed where the reference has stopped", f"{residual:.0f} km/h",
+k1.metric("Braking distance", f"{sel['distance']:.1f} m", f"{round(delta_m, 1) + 0:+.1f} m {vs}", delta_color="inverse")
+k2.metric("Speed at reference stop" if technical else "Speed where the factory tire has stopped", f"{residual:.0f} km/h",
           "Already stopped" if delta_m <= 0 else "Still moving", delta_color="normal" if delta_m <= 0 else "inverse",
           delta_arrow="off")
 if not technical:
-    k3.metric("Grip limit on a highway ramp", f"{sel['corner']:.0f} km/h", f"{sel['corner'] - ref['corner']:+.0f} km/h vs reference")
+    k3.metric("Grip limit on a highway ramp", f"{sel['corner']:.0f} km/h", f"{sel['corner'] - ref['corner']:+.0f} km/h {vs}")
 else:
     if sel["v_hp"]:
         k3.metric("Hydroplaning starts near", f"{sel['v_hp']:.0f} km/h", f"{sel['v_hp'] - ref['v_hp']:+.0f} km/h vs reference")
@@ -643,27 +658,27 @@ else:
 
 left, right = st.columns([1.45, 1])
 with left:
-    braking_animation(sel, ref, env, sel_label, ref_label)
+    braking_animation(sel, ref, env, sel_label, ref_label, ref_name)
     st.caption(f"Braking distance only. Add {ss.speed / 3.6 * REACTION_S:.0f} m travelled during a {REACTION_S} s driver "
                f"reaction at {ss.speed} km/h. Modelled values for comparison, not a measurement of any specific tire.")
-    verdict(delta_m, residual)
+    verdict(delta_m, residual, ref_name)
 with right:
-    tire_diagram(sel, ref)
+    tire_diagram(sel, ref, ref_name)
 
 if not technical:
     c1, c2 = st.columns([1.2, 1])
     with c1:
-        show(car_length_chart(sel, ref, ss.speed))
+        show(car_length_chart(sel, ref, ss.speed, ref_name))
     with c2:
         ratings = [("Stopping", ref["distance"] / sel["distance"]), ("Cornering grip", sel["corner"] / ref["corner"])]
         if sel["v_hp"]:
             ratings.append(("Staying in contact through water or slush", sel["v_hp"] / ref["v_hp"]))
         ratings += [("Ride comfort", 100 / sel["harshness"]), ("Pothole protection", 100 / sel["impact_risk"]),
                     ("Fuel economy", 1 - (sel["fuel_delta"] - ref["fuel_delta"]) / 100, FUEL_DOT_STEP)]
-        table = "| Compared with the reference | Rating | |\n|---|---|---|\n"
+        table = "| Compared with the factory tire | Rating | |\n|---|---|---|\n"
         table += "\n".join(f"| {name} | {dots(*r)[0]} | {dots(*r)[1]} |" for name, *r in ratings)
         st.markdown(table)
-        st.caption("Three dots means the same as the factory-size reference tire. Switch to the Technical view for the numbers behind each rating.")
+        st.caption("Three dots means the same as the factory tire: the factory size with new tread at the recommended pressure. Switch to the Technical view for the numbers behind each rating.")
     st.stop()
 
 tabs = st.tabs(["Braking physics", "Width vs diameter vs everything else", "Winter vs summer", "Slip and stability",
@@ -796,7 +811,9 @@ with tabs[4]:
     table = "| Hazard indicator | This setup | Status | Why it matters |\n|---|---|---|---|\n"
     table += "\n".join(f"| {a} | {b} | {c} | {d} |" for a, b, c, d in rows)
     st.markdown(table)
-    st.caption("Indices are relative to the factory size at 100. Status bands are screening thresholds for discussion, not compliance limits.")
+    st.caption("Indices are relative to the factory size at 100. Status bands are screening thresholds for discussion, not compliance limits. "
+               "The grip and cornering bands are absolute, so snow and ice can show high risk on every tire; "
+               "the comparison with the reference is in the first two rows.")
 
 with tabs[5]:
     km = 25000
