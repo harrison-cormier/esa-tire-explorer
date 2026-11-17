@@ -185,7 +185,8 @@ def tire_diagram(sel, ref, ref_name):
     number means and how it differs from the factory size. The middle row draws the tire to
     scale from the front (where width shows) and from the side (where rim and sidewall show),
     with the factory size as a dashed outline standing on the same ground line. The bottom
-    row draws the footprint on the road. The drawing scale is fixed per vehicle so the tire
+    row draws the footprint on the road as a tread print, in the same rubber colour and groove
+    pattern as the front view. The drawing scale is fixed per vehicle so the tire
     visibly grows and shrinks as the controls move, and only tightens for very tall tires.
     """
     g, f = sel["geo"], ref["geo"]
@@ -227,8 +228,17 @@ def tire_diagram(sel, ref, ref_name):
 
     def footprint(result, k, outline):
         w, h = result["patch_width"] * k, result["patch_length"] * k
-        box = f'x="{front_x - w / 2:.1f}" y="{404 - h / 2:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{min(h / 2, w / 2, 14):.1f}"'
-        return f'<rect {box} {ghost}/>' if outline else f'<rect {box} fill="{SELECTED}" fill-opacity="0.85"/>'
+        x, y, corner = front_x - w / 2, 404 - h / 2, min(h / 2, w / 2, 14)
+        box = f'x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{corner:.1f}"'
+        if outline:
+            return f'<rect {box} {ghost}/>'
+        gap = f'stroke="{SURFACE}" stroke-linecap="round"'
+        grooves = "".join(f'<line x1="{x + w * j:.1f}" y1="{y + 3:.1f}" x2="{x + w * j:.1f}" y2="{y + h - 3:.1f}" '
+                          f'{gap} stroke-width="3"/>' for j in (0.3, 0.5, 0.7))
+        cuts = "".join(f'<line x1="{x + 4:.1f}" y1="{yy:.1f}" x2="{x + w * 0.3 - 4:.1f}" y2="{yy + 3:.1f}" {gap} stroke-width="1.5"/>'
+                       f'<line x1="{x + w * 0.7 + 4:.1f}" y1="{yy + 3:.1f}" x2="{x + w - 4:.1f}" y2="{yy:.1f}" {gap} stroke-width="1.5"/>'
+                       for yy in np.arange(y + corner * 0.6, y + h - corner * 0.6 - 2, 8))
+        return f'<rect {box} fill="#2b2b2a"/>{grooves}{cuts}'
 
     def code_column(x, number, line_1, line_2, change):
         words, changed = change
@@ -242,7 +252,7 @@ def tire_diagram(sel, ref, ref_name):
     r_tire, r_rim = g["diameter"] / 2 * s, g["rim"] * 25.4 / 2 * s
     top, cy, half = ground - 2 * r_tire, ground - r_tire, g["width"] * s / 2
     note_x = side_x + max(r_tire, f["diameter"] / 2 * s) + 8
-    k = min(0.42, 60 / max(sel["patch_length"], ref["patch_length"]), 104 / max(sel["patch_width"], ref["patch_width"]))
+    k = min(0.42, 60 / max(sel["patch_length"], ref["patch_length"]), 92 / max(sel["patch_width"], ref["patch_width"]))
     patch_change = ", ".join(words for words, changed in (
         difference(sel["patch_width"] - ref["patch_width"], "mm", "wider", "narrower"),
         difference(sel["patch_length"] - ref["patch_length"], "mm", "longer", "shorter")) if changed)
@@ -283,8 +293,8 @@ def tire_diagram(sel, ref, ref_name):
   <line x1="12" y1="348" x2="408" y2="348" stroke="{GRID}"/>
   <text x="16" y="366" {label} font-weight="600">Footprint on the road, seen from above</text>
   {footprint(sel, k, False)}{footprint(ref, k, True)}
-  <path d="M30 428v-44m-4 6l4 -7l4 7" fill="none" stroke="{INK_2}" stroke-width="1.5"/>
-  <text transform="translate(21 406) rotate(-90)" text-anchor="middle" fill="{INK_2}" font-size="10.5">travel</text>
+  <path d="M19 428v-44m-4 6l4 -7l4 7" fill="none" stroke="{INK_2}" stroke-width="1.5"/>
+  <text transform="translate(11 406) rotate(-90)" text-anchor="middle" fill="{INK_2}" font-size="10.5">travel</text>
   <text x="134" y="394" {value}>{sel["patch_width"]:.0f} mm wide, {sel["patch_length"]:.0f} mm long</text>
   <text x="134" y="411" {label}>{patch_change.capitalize() + f" than {ref_name.lower()}" if patch_change else f"Same footprint as the {ref_name.lower()}"}</text>
   <text x="134" y="428" {label}>Depends on size, tire type and pressure</text>
