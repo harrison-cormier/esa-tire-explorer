@@ -1,0 +1,20 @@
+Tire fitment explorer
+Copyright 2026 Harrison Cormier, Ashley Pacek and Varvara Blinova
+
+The three authors contributed equally and hold the copyright equally.
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The work was conducted at the University of Waterloo as part of the Fleet Tire
+Optimization Strategy capstone project.
+
+The tire model is a screening model tuned against published tire tests and
+standard references. Those sources are credited in SOURCES.md. No test data,
+text or images from them are redistributed with this software.
+
+This software depends on the following third-party packages, which are
+installed separately and are not redistributed in this repository:
+
+  Streamlit   Apache License 2.0   https://github.com/streamlit/streamlit
+  Plotly      MIT License          https://github.com/plotly/plotly.py
+  NumPy       BSD 3-Clause         https://github.com/numpy/numpy

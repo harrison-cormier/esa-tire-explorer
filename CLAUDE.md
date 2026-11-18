@@ -1,6 +1,6 @@
-# ESA-03 tire fitment explorer
+# Tire fitment explorer
 
-Streamlit display that sits beside the poster for the ESA-03 Fleet Tire Optimization Strategy capstone (client: Ontario's Electrical Safety Authority). It shows how tire width, rim diameter, tire type, tread depth and pressure change stopping distance, slip and other health and safety indicators in summer and winter.
+Streamlit display that sits beside the poster for the Fleet Tire Optimization Strategy capstone project at the University of Waterloo. It shows how tire width, rim diameter, tire type, tread depth and pressure change stopping distance, slip and other health and safety indicators in summer and winter.
 
 ## Layout
 
@@ -9,6 +9,7 @@ Streamlit display that sits beside the poster for the ESA-03 Fleet Tire Optimiza
 - `tests/test_model.py`: calibration anchors and sanity checks for the model.
 - `tests/test_app.py`: smoke test that the page renders in both views and in demo mode.
 - `.streamlit/config.toml`: light theme and minimal toolbar for the hosted version.
+- `SOURCES.md`: every published test and reference behind the model, with links, the judgement values with no published support, and the sources that were removed. `NOTICE` and `CITATION.cff` carry copyright, third-party licences and how to cite.
 
 ## Commands
 
@@ -19,7 +20,10 @@ Streamlit display that sits beside the poster for the ESA-03 Fleet Tire Optimiza
 ## Rules for changes
 
 - This is a screening model calibrated to published tire tests, not measured data. Never word UI text as if a number were a measurement of a specific tire.
-- Any change to friction tables, exponents or the hydroplaning formula must keep `tests/test_model.py` passing. If an anchor needs to move, cite the test or paper that justifies it in the test docstring and in the "Model and sources" tab.
+- Any change to friction tables, exponents or the hydroplaning formula must keep `tests/test_model.py` passing. If an anchor needs to move, cite the test or paper that justifies it in the test docstring, in the "Model and sources" tab and in `SOURCES.md`.
+- Only cite sources whose figures have been confirmed. Never add a citation, link or figure to `SOURCES.md` or the model tab that has not been found; if a source cannot be supported, remove it and list the effect under judgement values.
+- The repository is public under Apache-2.0. Never name the project client anywhere in the code, the app, the documentation or commit messages, and do not commit client records or fleet lists.
+- Authors and copyright holders are Harrison Cormier, Ashley Pacek and Varvara Blinova, equally. The acknowledgement is that the work was conducted at the University of Waterloo. Keep `NOTICE`, `CITATION.cff`, the README, the app footer and the model tab consistent on this.
 - Keep the model free of Streamlit imports.
 - Keep code simple and readable: plain functions and dicts, no clever abstractions. Explain in prose (docstrings, README, the model tab), not inline comments.
 - UI wording is plain language for a poster audience. The Simple view carries no jargon; the Technical view may. The comparison tire is called the "factory tire" in the Simple view and the "reference" in the Technical view; pass `ref_name` rather than hard-coding either word in shared components.
@@ -32,8 +36,8 @@ Demo mode is meant to run full screen on a 13-inch laptop with the sidebar colla
 
 ## Known gaps
 
-- Vehicle classes in `VEHICLES` are generic placeholders. Replace with the ESA fleet list and factory sizes when available.
-- Price, wear, fuel, wheel weight, ride and damage indices are simple scaling rules. Replace with ESA purchase and service records where the project has them.
+- Vehicle classes in `VEHICLES` are generic placeholders. Replace with the real fleet list and factory sizes when available.
+- Price, wear, fuel, wheel weight, ride and damage indices are simple scaling rules. Replace with fleet purchase and service records where the project has them.
 - No studded tires, load transfer, ABS tuning or brand differences.
 - Standing water and slush are the least calibrated region. When the braking speed is close to the hydroplaning onset, distance becomes very sensitive to tread, width and pressure (for example 6 psi low adding about 55% in slush at 80 km/h). The direction is right; the size has no published anchor yet.
 - The quick-fitment buttons pick the nearest 5-point aspect ratio, which is not always a size that is sold.

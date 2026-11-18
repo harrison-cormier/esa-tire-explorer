@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below. The three authors contributed equally."
+title: "Tire fitment explorer"
+abstract: >-
+  Interactive screening model showing how tire width, rim diameter, tire type,
+  tread depth and pressure change stopping distance, slip and other health and
+  safety indicators in summer and winter conditions. Built for the Fleet Tire
+  Optimization Strategy capstone project at the University of Waterloo.
+type: software
+authors:
+  - family-names: Cormier
+    given-names: Harrison
+    affiliation: University of Waterloo
+  - family-names: Pacek
+    given-names: Ashley
+    affiliation: University of Waterloo
+  - family-names: Blinova
+    given-names: Varvara
+    affiliation: University of Waterloo
+repository-code: "https://github.com/harrison-cormier/esa-tire-explorer"
+license: Apache-2.0
+date-released: "2026-11-18"
+keywords:
+  - tires
+  - braking distance
+  - fleet safety
+  - winter tires
+  - screening model

@@ -1,4 +1,7 @@
-"""Calibration and sanity checks for tire_model. Each test names the published anchor it protects."""
+"""
+Calibration and sanity checks for tire_model. Each test names the published result or modelling
+assumption it protects. SOURCES.md says which are supported by a published test and which are judgement values.
+"""
 
 import math
 import sys
