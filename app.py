@@ -1,8 +1,10 @@
 """
 Tire fitment and seasonal performance explorer.
-Fleet Tire Optimization Strategy - interactive poster display.
+Fleet Tire Optimization Strategy capstone - interactive poster display.
 
 Run with:  streamlit run app.py
+
+Licensed under the Apache License 2.0 (see LICENSE and NOTICE). Sources are listed in SOURCES.md.
 """
 
 import json
@@ -22,6 +24,8 @@ REACTION_S = 1.5
 LIFT_LIMIT_KG = 23
 CAR_LENGTH_M = 4.5
 DEMO_SECONDS = 14
+REPO_URL = "https://github.com/harrison-cormier/tire-fitment-explorer"
+AUTHORS = "Harrison Cormier, Ashley Pacek and Varvara Blinova"
 FUEL_DOT_STEP = 0.03
 
 COMPOUND_COLOR = {
@@ -510,6 +514,13 @@ def verdict(delta_m, residual, ref_name):
                  f"It is still doing {residual:.0f} km/h where the {other} has stopped.", icon=":material/warning:")
 
 
+def footer():
+    """Small print under every view: what the numbers are, who made it, and where the sources and licence live."""
+    st.caption(f"Screening model tuned to published tire tests, for comparing choices. Not a measurement of any "
+               f"specific tire and not safety advice. © 2026 {AUTHORS}. Work conducted at the University of "
+               f"Waterloo. [Sources]({REPO_URL}/blob/main/SOURCES.md) · [Code and licence (Apache 2.0)]({REPO_URL})")
+
+
 def dots(ratio, step=0.10):
     """Five-dot rating against the reference. Each dot is one `step` of change, and three dots means within half a step."""
     filled = int(min(max(math.floor(3.5 + (ratio - 1) / step), 1), 5))
@@ -719,6 +730,7 @@ if not technical:
         table += "\n".join(f"| {name} | {dots(*r)[0]} | {dots(*r)[1]} |" for name, *r in ratings)
         st.markdown(table)
         st.caption("Three dots means the same as the factory tire: the factory size with new tread at the recommended pressure. Switch to the Technical view for the numbers behind each rating.")
+    footer()
     st.stop()
 
 tabs = st.tabs(["Braking physics", "Width vs diameter vs everything else", "Winter vs summer", "Slip and stability",
@@ -889,32 +901,63 @@ between brands than between sizes, so use it to compare choices, not to predict 
 (interpolated from a lookup table in the code). Friction is then scaled for size, tread depth and pressure, and
 braking distance is integrated from the chosen speed to a stop.
 
-**Calibration anchors**
-- Dry braking near 5 °C: winter tires stop about 15% longer than summer tires (What Car? test as reported, about 6 m from 100 km/h).
-- Wet braking by temperature: all-season leads summer up to about 10 °C, summer leads by 15 °C (Test World indoor test, 205/55R16).
-- Packed snow: summer tires take at least twice the distance of winter tires (Michelin demonstration); all-season sits between.
-- Ice: friction rises as ice gets colder and is lowest near 0 °C; winter tires stop in roughly half the distance of summer tires (Tire Rack ice rink test).
-- Width on packed snow: 225 against 255 mm differed by 0.04 m in snow braking (Tyre Reviews, Hankook i*cept evo3).
-  Width matters far more in slush and standing water than on packed snow.
-- Width in summer: wider improves wet and dry handling and braking, narrower resists aquaplaning and is quieter (ADAC, five widths).
-- Tread wear: about 2% per mm from 8 to 4 mm; below 4 mm, 4% per mm or more on snow and steeper in the wet
-  (Tyre Reviews with Continental; ACL worn winter tire test: wet braking +17% at 2 mm).
+**Published tests the model was tuned to.** Only sources whose figures could be confirmed are listed.
+- Cool dry road: winter tires stop about 15% longer than summer tires. Braking from 100 km/h at 5.5 °C, summer tires
+  needed 5.8 m less on average ([What Car?, "Should I buy winter tyres?"](https://www.whatcar.com/news/winter-tyres/)).
+- Cold wet road: winter tires stopped 4.0 m sooner than summer tires from 80 km/h at 4 °C (What Car?, same article).
+- Wet road by temperature: all-season leads summer in the cold and the two meet between 10 and 15 °C. At +2 °C
+  all-season tires stopped almost 6.5 m shorter from 80 km/h; at +12 °C the two were comparable
+  ([Tyre Reviews, 2025 Summer and All Season Combined Tyre Test](https://www.tyrereviews.com/Article/2025-Summer-and-All-Season-Combined-Tyre-Test.htm)).
+- Packed snow: summer tires take at least twice the distance of winter tires
+  ([What Car?, "Snow and ice"](https://www.whatcar.com/news/snow-and-ice/n11592): 17.7 m for winter tires, more than twice that for summer).
+- Ice: winter tires stop about a third shorter than all-season tires
+  ([Tire Rack ice rink tests](https://www.tirerack.com/tires/tests/testDisplay.jsp?ttid=116): 35.1 ft against 53.6 ft from 12 mph).
+- Width in winter: narrower tires have the advantage in aquaplaning, slush and on snow, wider tires on a dry road, and
+  width matters less than the tire model. In 7 mm of water 225 mm tires lost contact near 70 km/h and 195 mm tires
+  above 80 km/h ([ADAC winter tire width comparison](https://presse.adac.de/meldungen/adac-ev/tests/reifenbreitenvergleich-winterreifen.html)).
+  On packed snow four widths of one tire were too close for a driver to notice
+  (Tyre Reviews test, as reported by [Motor1](https://www.motor1.com/news/696279/wide-vs-narrow-winter-tires-explained/)).
+- Width in summer: wider tires stop shorter on dry and wet roads, narrower tires aquaplane at a higher speed
+  ([ADAC, narrow against wide tires](https://www.adac.de/rund-ums-fahrzeug/ausstattung-technik-zubehoer/reifen/sicherheit/reifengroesse/)).
+- Tread wear: wet braking barely changes down to 4 mm and is about 17% longer at 2 mm; snow traction falls 8.8% at
+  4 mm and 15.9% at 2 mm ([ADAC worn tire test](https://www.adac.de/rund-ums-fahrzeug/ausstattung-technik-zubehoer/reifen/sicherheit/abgefahrene-reifen/)).
 
-**Hydroplaning.** Horne's NASA relation (speed in km/h = 6.35 x square root of pressure in kPa) scaled for tread
-depth against water depth and for footprint shape (wider and shorter footprints ride up sooner).
-
-**Slip.** The grip against slip curve uses the Burckhardt tire model shapes for dry, wet, snow and ice, scaled
-to the peak friction from the grip model. The ice curve is given a mild fall-off after its peak, as measured ice curves show.
+**Key papers and references**
+- Hydroplaning: Horne, W. B., and Dreher, R. C. (1963). *Phenomena of Pneumatic Tire Hydroplaning*.
+  [NASA Technical Note D-2056](https://ntrs.nasa.gov/citations/19640000612). The model uses its relation between
+  onset speed and pressure (speed in km/h = 6.35 x square root of pressure in kPa), scaled for tread depth against
+  water depth and for footprint shape (wider and shorter footprints ride up sooner).
+- Wheel slip: Burckhardt, M. (1993). *Fahrwerktechnik: Radschlupf-Regelsysteme*. Vogel Verlag. The grip against slip
+  curve uses the Burckhardt model form for dry, wet, snow and ice, scaled to the peak friction from the grip model.
+  The ice curve is given a mild fall-off after its peak.
+- Manual lifting: Waters, T. R., Putz-Anderson, V., Garg, A., and Fine, L. J. (1993). Revised NIOSH equation for the
+  design and evaluation of manual lifting tasks. [*Ergonomics* 36(7), 749-776](https://doi.org/10.1080/00140139308967940).
+  Source of the {LIFT_LIMIT_KG} kg reference load.
+- CO2 from fuel: Natural Resources Canada,
+  [*2026 Fuel Consumption Guide*](https://natural-resources.canada.ca/sites/admin/files/documents/2026-02/2026-Fuel-Consumption-Guide.pdf).
+  Source of 2.3 kg of CO2 per litre of gasoline.
 
 **Pressure and temperature.** Gauge pressure follows the gas law: roughly 1 psi lost per 5 to 6 °C of cooling.
 
-**Indices.** Steering response, ride harshness, damage risk, price, wear, wheel weight and fuel use are simple
-scaling rules on sidewall height, width, diameter and pressure. Fuel use assumes rolling resistance accounts for
-a quarter of fuel burned. They are directional only.
+**Judgement values, with no published support.** The rise in ice friction as ice gets colder, slush friction, the
+size of the hydroplaning effect on braking distance, and the exponents for width, sidewall and diameter set the
+direction of an effect and a plausible size only. Steering response, ride harshness, damage risk, price, wear, wheel
+weight and fuel use are simple scaling rules on sidewall height, width, diameter and pressure; fuel use assumes
+rolling resistance accounts for a quarter of fuel burned. The full list is in
+[SOURCES.md]({REPO_URL}/blob/main/SOURCES.md).
 
 **Temperature ranges.** Packed snow is limited to 2 °C and colder, ice to 0 °C and colder, slush to between
 −10 and 3 °C, and a wet road to −15 °C and warmer. Slush grip is held constant with temperature.
 
 **Limits.** No vehicle dynamics, ABS tuning, load transfer, studs, road crown or brand differences. Vehicle
-classes are generic, not the real fleet list.
+classes are generic placeholders, not a real fleet.
+
+**Authors and acknowledgement.** {AUTHORS}, who contributed equally. The work was conducted at the University of
+Waterloo as part of the Fleet Tire Optimization Strategy capstone project.
+
+**Use and licence.** This is a student project and it is not safety advice: do not use it to choose tires for a
+specific vehicle. The tire makers, test organisations and publications named here are credited as sources only and
+did not review or endorse this work. © 2026 {AUTHORS}. The code is open source under the Apache License 2.0 at
+[{REPO_URL.split("//")[1]}]({REPO_URL}).
 """)
+footer()

@@ -3,6 +3,9 @@ Tire performance screening model for the fleet tire fitment explorer.
 
 Pure functions and lookup tables, with no Streamlit dependency, so the model can be
 tested and reused on its own. Calibration anchors are checked in tests/test_model.py.
+The published tests and references behind each table and formula are listed in SOURCES.md.
+
+Licensed under the Apache License 2.0 (see LICENSE and NOTICE).
 """
 
 import math
