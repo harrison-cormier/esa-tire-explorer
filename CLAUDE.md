@@ -30,6 +30,15 @@ Streamlit display that sits beside the poster for the Fleet Tire Optimization St
 - Chart colours: selected setup is blue `#2a78d6`, reference is grey dashed, a longer braking distance in the one-change-at-a-time chart is dark grey `#52514e`, tire types keep their fixed colours in `COMPOUND_COLOR`. Do not reuse status colours for series.
 - Streamlit is pinned in `requirements.txt`. `st.iframe` and `width="stretch"` need a recent version, so do not lower the pin without testing.
 
+## Who does the work, and how it is reviewed
+
+- The main session runs on Opus (`/model opus`) and orchestrates: it plans, decides, reads every change before it is committed, and commits.
+- Work with nothing left to decide goes to smaller models through the Agent tool's `model` setting: `haiku` to run the tests or find where something is, `sonnet` for an edit whose exact rule is already written. Each brief says the goal, the files, what done means and what is already known.
+- Changes to the model's numbers, the friction tables, the hydroplaning formula, `SOURCES.md` and anything about authorship stay with the main session.
+- A review during the work, such as a second opinion on a change to the model, runs on Opus, read-only.
+- Fable, the strongest and dearest model, is used for two things only (the owner's instruction, 2026-11-19): the final review of a change before it is merged, and a hard area the main session calls it in for, such as whether a calibration anchor still matches its source. It works read-only and reports back. If Fable is not available, the final review runs on Opus and the commit or pull request says so.
+- A reviewer reproduces every finding, by running the tests or a small script, before reporting it.
+
 ## Demo mode layout
 
 Demo mode is meant to run full screen on a 13-inch laptop with the sidebar collapsed. Its first screen (banner, three metrics, braking animation, verdict and tire picture) must fit in about 800 px of height, with the comparison charts one scroll below. To keep it that short, demo mode hides the page title, drops the heading inside the animation and caps the tire picture height. Check at 1440 x 800 after changing anything above the divider.
