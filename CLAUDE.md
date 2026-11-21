@@ -43,6 +43,33 @@ Streamlit display that sits beside the poster for the Fleet Tire Optimization St
 - Fable, the strongest and dearest model, is used for two things only (the owner's instruction, 2026-11-19): the final review of a change before it is merged, and a hard area the main session calls it in for, such as whether a calibration anchor still matches its source. It works read-only and reports back. If Fable is not available, the final review runs on Opus and the commit or pull request says so.
 - A reviewer reproduces every finding, by running the tests or a small script, before reporting it.
 
+## Stay in this repository (owner's rule, 2026-11-21)
+
+A session works on this repository only: its folder, its own git worktrees
+and its own GitHub repository.
+
+1. **Ask before changing anything else.** Changing another repository, or a
+   folder outside this one, needs the owner's approval in the conversation:
+   - editing or writing its files;
+   - committing, pushing, merging or changing branches there;
+   - opening, merging, closing or commenting on its pull requests or issues;
+   - changing its settings.
+   The approval is for that repository and that change, and does not carry
+   over to the next one. Reading anything is fine.
+2. **When the work seems to need a change elsewhere,** write it under
+   '## Known gaps' in `CLAUDE.md`, and ask. Don't make the change and
+   report it afterwards.
+3. **Helpers follow the same rule.** A brief never sends a helper to write
+   outside this repository.
+4. **The guard backs the rule.** `.claude/settings.json` runs
+   `scripts/guard_repo_boundary.py` before every file edit and shell
+   command. When a call would change something outside this repository,
+   the owner gets a permission prompt and decides. The session cannot
+   approve it for itself. Scratch space (the system temp folder) stays
+   writable, except inside another repository there. The guard catches
+   mistakes; it is not a sandbox, so the rule still holds where the guard
+   cannot see.
+
 ## Demo mode layout
 
 Demo mode is meant to run full screen on a 13-inch laptop with the sidebar collapsed. Its first screen (banner, three metrics, braking animation, verdict and tire picture) must fit in about 800 px of height, with the comparison charts one scroll below. To keep it that short, demo mode hides the page title, drops the heading inside the animation and caps the tire picture height. Check at 1440 x 800 after changing anything above the divider.
