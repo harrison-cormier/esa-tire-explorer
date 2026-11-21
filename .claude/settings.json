@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/guard_repo_boundary.py\"",
+            "timeout": 15,
+            "statusMessage": "Checking the change stays in this repository"
+          }
+        ]
+      }
+    ]
+  }
+}
