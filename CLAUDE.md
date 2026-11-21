@@ -33,7 +33,11 @@ Streamlit display that sits beside the poster for the Fleet Tire Optimization St
 ## Who does the work, and how it is reviewed
 
 - The main session runs on Opus (`/model opus`) and orchestrates: it plans, decides, reads every change before it is committed, and commits.
-- Work with nothing left to decide goes to smaller models through the Agent tool's `model` setting: `haiku` to run the tests or find where something is, `sonnet` for an edit whose exact rule is already written. Each brief says the goal, the files, what done means and what is already known.
+- The rule for choosing: hand a task to the cheapest model whose likely mistakes the next check will catch, and keep work whose mistakes no check would show (a number in the model, a citation, authorship). Work with nothing left to decide goes to smaller models through the Agent tool's `model` setting:
+  - `haiku` to run the tests or find where something is. The main session trusts the result unless it is surprising or drives an edit, and then reads one cited line.
+  - `sonnet` for an edit whose exact rule is already written. The main session reads the whole diff, checks that the new test fails without the change, and runs the tests.
+- Each brief says the goal, the files, what done means and what is already known. It asks for every claim with a `file:line` or a command and its output, and it states a claim to test, not a conclusion to confirm. Tasks of three tool calls or fewer are not delegated, because a helper starts cold.
+- A helper stopped by a usage limit is resumed, not restarted. The commit or pull request says what was delegated, how it was checked and anything that had to be redone.
 - Changes to the model's numbers, the friction tables, the hydroplaning formula, `SOURCES.md` and anything about authorship stay with the main session.
 - A review during the work, such as a second opinion on a change to the model, runs on Opus, read-only.
 - Fable, the strongest and dearest model, is used for two things only (the owner's instruction, 2026-11-19): the final review of a change before it is merged, and a hard area the main session calls it in for, such as whether a calibration anchor still matches its source. It works read-only and reports back. If Fable is not available, the final review runs on Opus and the commit or pull request says so.
